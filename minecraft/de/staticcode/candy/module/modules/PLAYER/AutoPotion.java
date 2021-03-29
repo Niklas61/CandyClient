@@ -23,7 +23,6 @@ public class AutoPotion extends Module {
     protected GuiComponent useInventoryContent = new GuiComponent ( "Inventory Content" , this , false );
     protected int oldSlot;
 
-    private boolean swapped;
     protected boolean openedInventory;
 
     public AutoPotion ( ) {
@@ -40,8 +39,10 @@ public class AutoPotion extends Module {
     @Override
     public void onUpdate ( ) {
 
-        if (mc.currentScreen != null)
+        if (mc.currentScreen != null) {
+            this.openedInventory = false;
             return;
+        }
 
         if (mc.playerController.getCurrentGameType ( ) == WorldSettings.GameType.CREATIVE)
             return;
@@ -171,13 +172,6 @@ public class AutoPotion extends Module {
         return foundEmpty;
     }
 
-    public void setSwapped ( boolean swapped ) {
-        this.swapped = swapped;
-    }
-
-    public boolean isSwapped ( ) {
-        return swapped;
-    }
 }
 
 class PotionSlot {
