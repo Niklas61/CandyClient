@@ -7,6 +7,7 @@ import de.staticcode.ui.Location3D;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.util.MathHelper;
+import net.minecraft.world.WorldSettings;
 
 public class SmoothAim extends Module {
 
@@ -66,7 +67,7 @@ public class SmoothAim extends Module {
                 EntityLivingBase entityLivingBase = ( EntityLivingBase ) entities;
                 final double distanceToPlayer = entityLivingBase.getDistance ( mc.thePlayer.posX , mc.thePlayer.posY , mc.thePlayer.posZ );
 
-                if (distanceToPlayer > 4.3D)
+                if (distanceToPlayer > ( mc.playerController.getCurrentGameType ( ) == WorldSettings.GameType.CREATIVE ? 6D : 4.3D ))
                     continue;
 
                 final BlickWinkel3D blickWinkel3D = this.getRotationsToEntity ( entityLivingBase );
