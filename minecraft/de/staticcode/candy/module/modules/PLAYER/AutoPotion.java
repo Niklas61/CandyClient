@@ -1,6 +1,5 @@
 package de.staticcode.candy.module.modules.PLAYER;
 
-import de.staticcode.candy.Candy;
 import de.staticcode.candy.gui.components.GuiComponent;
 import de.staticcode.candy.module.Module;
 import de.staticcode.candy.module.category.Category;
@@ -19,59 +18,24 @@ import net.minecraft.world.WorldSettings;
 
 public class AutoPotion extends Module {
 
+    protected static boolean fakeRotations;
     protected Timings timings = new Timings ( );
     protected GuiComponent useInventoryContent = new GuiComponent ( "Inventory Content" , this , false );
     protected int oldSlot;
-
+    protected Timings splashTime = new Timings ( );
     protected boolean openedInventory;
+    protected boolean sendRotations;
 
     public AutoPotion ( ) {
         super ( "AutoPotion" , Category.PLAYER );
     }
 
-    @Override
-    public void onDisable ( ) {
-        this.closeInv ( );
-        this.oldSlot = -1;
-        super.onDisable ( );
+    public static boolean isFakeRotations ( ) {
+        return fakeRotations;
     }
 
-    @Override
-    public void onUpdate ( ) {
-
-        if (mc.currentScreen != null) {
-            this.openedInventory = false;
-            return;
-        }
-
-        if (mc.playerController.getCurrentGameType ( ) == WorldSettings.GameType.CREATIVE)
-            return;
-
-        PotionSlot regenSlot = this.getPotion ( "regeneration" );
-        PotionSlot speedSlot = this.getPotion ( "moveSpeed" );
-        PotionSlot healSlot = this.getPotion ( "heal" );
-
-        if (regenSlot != null && Minecraft.thePlayer.getHealth ( ) <= ( Minecraft.thePlayer.getMaxHealth ( ) / 2F )) {
-            this.usePotion ( regenSlot );
-        }
-
-        if (speedSlot != null) {
-            if (Minecraft.thePlayer.getActivePotionEffect ( Potion.moveSpeed ) == null)
-                this.usePotion ( speedSlot );
-        }
-
-        if (healSlot != null && Minecraft.thePlayer.getHealth ( ) <= ( Minecraft.thePlayer.getMaxHealth ( ) / 3F )) {
-            this.usePotion ( healSlot );
-        }
-
-        if (this.oldSlot != -1) {
-            if (this.timings.hasReached ( 150L )) {
-                Minecraft.thePlayer.inventory.currentItem = this.oldSlot;
-                this.oldSlot = -1;
-            }
-        }
-
-        super.onUpdate ( );
+    public static void setFakeRotations ( boolean fakeRotations ) {
+        AutoPotion.fakeRotations = fakeRotations;
     }
 
     protected PotionSlot getPotion ( String potionEffectType ) {
@@ -82,10 +46,7 @@ public class AutoPotion extends Module {
 
                 if (itemStack.getItem ( ) instanceof ItemPotion) {
                     ItemPotion itemPotion = ( ItemPotion ) itemStack.getItem ( );
-
-
                     if (ItemPotion.isSplash ( itemStack.getMetadata ( ) )) {
-                        Candy.sendChat ( slotId );
                         for ( PotionEffect potionEffect : itemPotion.getEffects ( itemStack ) ) {
                             if (potionEffect.getEffectName ( ).equalsIgnoreCase ( "potion." + potionEffectType ))
                                 return new PotionSlot ( slotId , slotId > 8 );
@@ -98,12 +59,77 @@ public class AutoPotion extends Module {
         return null;
     }
 
+    @Override
+    public void onDisable ( ) {
+        this.closeInv ( );
+        this.oldSlot = -1;
+        setFakeRotations ( false );
+        super.onDisable ( );
+    }
+
+    @Override
+    public void onUpdate ( ) {
+        if (mc.currentScreen != null) {
+            this.openedInventory = false;
+            return;
+        }
+
+        if (mc.playerController.getCurrentGameType ( ) == WorldSettings.GameType.CREATIVE)
+            return;
+
+        if (InvCleaner.instance.working)
+            return;
+
+        if (!this.splashTime.hasReached ( 300L ))
+            return;
+
+        PotionSlot regenSlot = this.getPotion ( "regeneration" );
+        PotionSlot speedSlot = this.getPotion ( "moveSpeed" );
+        PotionSlot healSlot = this.getPotion ( "heal" );
+
+        if (regenSlot != null && Minecraft.thePlayer.getHealth ( ) <= ( Minecraft.thePlayer.getMaxHealth ( ) / 1.3F )) {
+            this.sendRotations = true;
+            setFakeRotations ( true );
+            RotationUtils.server_pitch = 90F;
+            this.usePotion ( regenSlot );
+        }
+
+        if (speedSlot != null) {
+            if (Minecraft.thePlayer.getActivePotionEffect ( Potion.moveSpeed ) == null) {
+                this.sendRotations = true;
+                setFakeRotations ( true );
+                RotationUtils.server_pitch = 90F;
+                this.usePotion ( speedSlot );
+            }
+        }
+
+        if (healSlot != null && Minecraft.thePlayer.getHealth ( ) <= ( Minecraft.thePlayer.getMaxHealth ( ) / 3F )) {
+            this.sendRotations = true;
+            setFakeRotations ( true );
+            RotationUtils.server_pitch = 90F;
+            this.usePotion ( healSlot );
+        }
+
+        if (this.oldSlot != -1) {
+            if (this.timings.hasReached ( 150L )) {
+                Minecraft.thePlayer.inventory.currentItem = this.oldSlot;
+                this.oldSlot = -1;
+                this.sendRotations = false;
+                setFakeRotations ( false );
+            }
+        }
+
+        super.onUpdate ( );
+    }
+
     protected void usePotion ( PotionSlot potionSlot ) {
 
         if (this.oldSlot == -1) {
             this.oldSlot = Minecraft.thePlayer.inventory.currentItem;
             this.timings.resetTimings ( );
         }
+
+        final int hotbarSlot = potionSlot.isInventoryContent ( ) ? 8 : potionSlot.getSlot ( );
 
         if (potionSlot.isInventoryContent ( )) {
             if (!this.isSwapReady ( )) {
@@ -123,43 +149,34 @@ public class AutoPotion extends Module {
                 this.closeInv ( );
             }
         }
-
-        Minecraft.thePlayer.inventory.currentItem = potionSlot.getSlot ( );
+        Minecraft.thePlayer.inventory.currentItem = hotbarSlot;
         C08PacketPlayerBlockPlacement block = new C08PacketPlayerBlockPlacement ( new BlockPos ( Minecraft.thePlayer.posX , Minecraft.thePlayer.posY , Minecraft.thePlayer.posZ ) , 255 ,
-                Minecraft.thePlayer.inventory.getStackInSlot ( potionSlot.getSlot ( ) ) , 0.0F , 0.0F , 0.0F );
-        RotationUtils.server_pitch = 70F;
+                Minecraft.thePlayer.inventory.getStackInSlot ( hotbarSlot ) , 0.0F , 0.0F , 0.0F );
+        RotationUtils.server_pitch = 90F;
         Minecraft.thePlayer.sendQueue.addToSendQueue ( block );
+        this.splashTime.resetTimings ( );
     }
 
     protected void openInv ( ) {
         if (!( mc.currentScreen instanceof GuiInventory )) {
-            Minecraft.thePlayer.sendQueue.addToSendQueue ( new C0BPacketEntityAction ( Minecraft.thePlayer , C0BPacketEntityAction.Action.OPEN_INVENTORY ) );
+            mc.thePlayer.sendQueue.addToSendQueue ( new C0BPacketEntityAction ( Minecraft.thePlayer , C0BPacketEntityAction.Action.OPEN_INVENTORY ) );
             this.openedInventory = true;
         }
     }
 
     protected void closeInv ( ) {
         if (this.openedInventory) {
-            Minecraft.thePlayer.sendQueue.addToSendQueue ( new C0BPacketEntityAction ( Minecraft.thePlayer , C0BPacketEntityAction.Action.OPEN_INVENTORY ) );
+            mc.thePlayer.sendQueue.addToSendQueue ( new C0BPacketEntityAction ( Minecraft.thePlayer , C0BPacketEntityAction.Action.OPEN_INVENTORY ) );
             this.openedInventory = false;
         }
     }
 
     protected void moveToInv ( int from ) {
-        this.mc.playerController.windowClick ( Minecraft.thePlayer.inventoryContainer.windowId , from , 0 , 1 , Minecraft.thePlayer );
+        mc.playerController.windowClick ( Minecraft.thePlayer.inventoryContainer.windowId , from , 0 , 1 , Minecraft.thePlayer );
     }
 
     protected void swapItem ( int from , int to ) {
-        this.mc.playerController.windowClick ( Minecraft.thePlayer.inventoryContainer.windowId , from , to , 2 , Minecraft.thePlayer );
-    }
-
-    public void dropItem ( int slot ) {
-        Minecraft.thePlayer.inventoryContainer.slotClick ( slot , 0 , 4 , Minecraft.thePlayer );
-        this.mc.playerController.windowClick ( Minecraft.thePlayer.inventoryContainer.windowId , slot , 1 , 4 , Minecraft.thePlayer );
-    }
-
-    protected boolean isSwapReady ( ) {
-        return Minecraft.thePlayer.inventory.getStackInSlot ( 8 ) == null;
+        mc.playerController.windowClick ( Minecraft.thePlayer.inventoryContainer.windowId , from , to , 2 , Minecraft.thePlayer );
     }
 
     protected boolean foundEmptySlot ( ) {
@@ -172,11 +189,19 @@ public class AutoPotion extends Module {
         return foundEmpty;
     }
 
+    public void dropItem ( int slot ) {
+        mc.thePlayer.inventoryContainer.slotClick ( slot , 0 , 4 , Minecraft.thePlayer );
+        mc.playerController.windowClick ( Minecraft.thePlayer.inventoryContainer.windowId , slot , 1 , 4 , Minecraft.thePlayer );
+    }
+
+    protected boolean isSwapReady ( ) {
+        return mc.thePlayer.inventory.getStackInSlot ( 8 ) == null;
+    }
 }
 
 class PotionSlot {
 
-    private final int slot;
+    private int slot;
     private boolean isInventoryContent;
 
     PotionSlot ( int slot , boolean isInventoryContent ) {

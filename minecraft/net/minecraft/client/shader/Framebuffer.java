@@ -8,8 +8,9 @@ import net.minecraft.client.renderer.texture.TextureUtil;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import org.lwjgl.opengl.GL11;
 
-public class Framebuffer
-{
+import java.nio.ByteBuffer;
+
+public class Framebuffer {
     public int framebufferTextureWidth;
     public int framebufferTextureHeight;
     public int framebufferWidth;
@@ -107,9 +108,9 @@ public class Framebuffer
             }
 
             this.setFramebufferFilter(9728);
-            GlStateManager.bindTexture(this.framebufferTexture);
-            GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA8, this.framebufferTextureWidth, this.framebufferTextureHeight, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, null );
-            OpenGlHelper.glBindFramebuffer(OpenGlHelper.GL_FRAMEBUFFER, this.framebufferObject);
+            GlStateManager.bindTexture ( this.framebufferTexture );
+            GL11.glTexImage2D ( GL11.GL_TEXTURE_2D , 0 , GL11.GL_RGBA8 , this.framebufferTextureWidth , this.framebufferTextureHeight , 0 , GL11.GL_RGBA , GL11.GL_UNSIGNED_BYTE , ( ByteBuffer ) null );
+            OpenGlHelper.glBindFramebuffer ( OpenGlHelper.GL_FRAMEBUFFER , this.framebufferObject );
             OpenGlHelper.glFramebufferTexture2D(OpenGlHelper.GL_FRAMEBUFFER, OpenGlHelper.GL_COLOR_ATTACHMENT0, 3553, this.framebufferTexture, 0);
 
             if (this.useDepth)

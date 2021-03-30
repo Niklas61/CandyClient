@@ -203,7 +203,7 @@ public class NetworkManager extends SimpleChannelInboundHandler< Packet > {
                     }
                 }
 
-                if (!p_channelRead0_2_.getClass ( ).getPackage ( ).toString ( ).contains ( "network.play.server" ) || p_channelRead0_2_ instanceof S21PacketChunkData || p_channelRead0_2_ instanceof S00PacketKeepAlive) {
+                if (!p_channelRead0_2_.getClass ( ).getPackage ( ).toString ( ).contains ( "network.play.server" ) || p_channelRead0_2_ instanceof S21PacketChunkData || p_channelRead0_2_ instanceof S00PacketKeepAlive || p_channelRead0_2_ instanceof S33PacketUpdateSign || p_channelRead0_2_ instanceof S26PacketMapChunkBulk || p_channelRead0_2_ instanceof S35PacketUpdateTileEntity || p_channelRead0_2_ instanceof S19PacketEntityStatus || p_channelRead0_2_ instanceof S26PacketMapChunkBulk) {
                     p_channelRead0_2_.processPacket ( this.packetListener );
                     return;
                 }

@@ -4,6 +4,7 @@ import de.staticcode.candy.gui.components.GuiComponent;
 import de.staticcode.candy.math.LaggTime;
 import de.staticcode.candy.module.Module;
 import de.staticcode.candy.module.modules.COMBAT.Killaura;
+import de.staticcode.candy.module.modules.PLAYER.AutoPotion;
 import de.staticcode.candy.utils.RenderUtils;
 import de.staticcode.candy.utils.RotationUtils;
 import net.minecraft.client.Minecraft;
@@ -149,18 +150,6 @@ public class EntityPlayerSP extends AbstractClientPlayer {
      * Called to update the entity's position/logic.
      */
     public void onUpdate ( ) {
-        if (this == Minecraft.thePlayer) {
-            if (Killaura.underAttack == null && !Killaura.isTurnOffRotation && !Module.getByName ( "Scaffold" ).isToggled ( )) {
-                RotationUtils.server_pitch = this.rotationPitch;
-                RotationUtils.server_yaw = this.rotationYaw;
-            }
-
-            RenderUtils.shouldRender = false;
-
-            LaggTime.lastMs = System.currentTimeMillis ( );
-
-            Module.updateAllModules ( );
-        }
 
         if (this.worldObj.isBlockLoaded ( new BlockPos ( this.posX , 0.0D , this.posZ ) )) {
             super.onUpdate ( );
@@ -173,6 +162,22 @@ public class EntityPlayerSP extends AbstractClientPlayer {
             } else {
                 this.onUpdateWalkingPlayer ( );
             }
+        }
+
+        if (this == Minecraft.thePlayer) {
+            if (Killaura.underAttack == null && !Killaura.isTurnOffRotation && !Module.getByName ( "Scaffold" ).isToggled ( ) && !AutoPotion.isFakeRotations ( )) {
+                RotationUtils.server_pitch = this.rotationPitch;
+                RotationUtils.server_yaw = this.rotationYaw;
+            }
+
+            RenderUtils.shouldRender = false;
+
+            LaggTime.lastMs = System.currentTimeMillis ( );
+
+
+            if (AutoPotion.isFakeRotations ( ))
+                RotationUtils.server_pitch = 90F;
+            Module.updateAllModules ( );
         }
     }
 

@@ -460,9 +460,6 @@ public class PlayerControllerMP {
      * Handles slot clicks sends a packet to the server.
      */
     public ItemStack windowClick ( int windowId , int slotId , int mouseButtonClicked , int mode , EntityPlayer playerIn ) {
-
-        System.out.println ( slotId +" " + mouseButtonClicked +" "+mode);
-
         short short1 = playerIn.openContainer.getNextTransactionID ( playerIn.inventory );
         ItemStack itemstack = playerIn.openContainer.slotClick ( slotId , mouseButtonClicked , mode , playerIn );
         this.netClientHandler.addToSendQueue (

@@ -7,6 +7,7 @@ import de.staticcode.candy.friend.FriendManager;
 import de.staticcode.candy.gui.components.GuiComponent;
 import de.staticcode.candy.module.Module;
 import de.staticcode.candy.module.category.Category;
+import de.staticcode.candy.module.modules.PLAYER.AutoPotion;
 import de.staticcode.candy.utils.RotationUtils;
 import de.staticcode.candy.utils.Timings;
 import de.staticcode.ui.BlickWinkel3D;
@@ -57,8 +58,6 @@ public class Killaura extends Module {
     private final GuiComponent preAimSlider = new GuiComponent ( "Pre-Aim Range" , this , 2.2D , 0.1D , 0.1D );
     private final GuiComponent rangeSlider = new GuiComponent ( "Attack Reach" , this , 8D , 1D , 1D );
     private final GuiComponent delaySlider = new GuiComponent ( "Ticks" , this , 700D , 10D , 80D );
-    private final GuiComponent rotationSpeed = new GuiComponent ( "Rotation-Speed" , this , 90D , 10D , 50D );
-    private final GuiComponent frictionSpeed = new GuiComponent ( "Rotation-Jitter" , this , 7.5D , 1D , 2.5D );
     private final GuiComponent autoblockMode = new GuiComponent ( "AutoBlock Mode" , this , Arrays.asList ( "None" , "Smart-Block" , "Block always" ) , "None" );
     private final GuiComponent movementMode = new GuiComponent ( "Movement Mode" , this , Arrays.asList ( "Normal" , "Server-Side" , "Client-Side" ) , "Normal" );
     private final GuiComponent hurtTimeButton = new GuiComponent ( "Hurttime" , this , false );
@@ -111,11 +110,13 @@ public class Killaura extends Module {
             this.hitAnimaton.resetTimings ( );
             this.sniperTimings.resetTimings ( );
 
-            if (this.smoothRotationsButton.isToggled ( ))
+            if (this.smoothRotationsButton.isToggled ( )) {
                 this.updateTurnoffRotation ( );
+            }
 
-            if (this.isBlocking)
+            if (this.isBlocking) {
                 this.setUnblock ( );
+            }
 
             ItemRenderer.isBlocking = false;
         }
@@ -154,9 +155,8 @@ public class Killaura extends Module {
     public void updateTurnoffRotation ( ) {
         isTurnOffRotation = true;
 
-
-        float yaw = this.computeNextYaw ( RotationUtils.server_yaw , previousYaw , Minecraft.thePlayer.rotationYaw );
-        float pitch = this.computeNextPitch ( RotationUtils.server_pitch , previousPitch , Minecraft.thePlayer.rotationPitch );
+        float yaw = this.computeNextYaw ( null , RotationUtils.server_yaw , previousYaw , Minecraft.thePlayer.rotationYaw , Minecraft.thePlayer.rotationYaw );
+        float pitch = this.computeNextPitch ( null , RotationUtils.server_pitch , previousPitch , Minecraft.thePlayer.rotationPitch );
 
         if (this.doneRotatedYaw && this.doneRotatedPitch) {
             this.doneRotatedYaw = false;
@@ -189,12 +189,14 @@ public class Killaura extends Module {
         }
 
         if (this.smoothRotationsButton.isToggled ( )) {
-            pitch = this.computeNextPitch ( RotationUtils.server_pitch , previousPitch , pitch );
-            yaw = this.computeNextYaw ( RotationUtils.server_yaw , previousYaw , yaw );
+            yaw = this.computeNextYaw ( entityLivingBase , RotationUtils.server_yaw , previousYaw , yaw , rotations[ 0 ] );
+            pitch = this.computeNextPitch ( entityLivingBase , RotationUtils.server_pitch , previousPitch , pitch );
         }
 
         RotationUtils.server_yaw = yaw;
-        RotationUtils.server_pitch = pitch;
+
+        if (!AutoPotion.isFakeRotations ( ))
+            RotationUtils.server_pitch = pitch;
 
         if (this.canHit ( entityLivingBase )) {
             if (!this.smoothHit ( entityLivingBase ))
@@ -207,6 +209,33 @@ public class Killaura extends Module {
         previousYaw = yaw;
         previousPitch = pitch;
     }
+
+    private double getModifiedRotSpeed ( EntityLivingBase entityLivingBase ) {
+        final double lastTargetX = entityLivingBase.lastTickPosX;
+        final double currentTargetX = entityLivingBase.posX;
+        final double distTargetX = Math.abs ( lastTargetX - currentTargetX );
+
+        final double lastTargetZ = entityLivingBase.lastTickPosZ;
+        final double currentTargetZ = entityLivingBase.posZ;
+        final double distTargetZ = Math.abs ( lastTargetZ - currentTargetZ );
+
+        final double distTarget = Math.sqrt ( distTargetX * distTargetX + distTargetZ * distTargetZ );
+
+        final double lastPlayerX = mc.thePlayer.lastTickPosX;
+        final double currentPlayerX = mc.thePlayer.posX;
+        final double distPlayerX = Math.abs ( lastPlayerX - currentPlayerX );
+
+        final double lastPlayerZ = mc.thePlayer.lastTickPosZ;
+        final double currentPlayerZ = mc.thePlayer.posZ;
+        final double distPlayerZ = Math.abs ( lastPlayerZ - currentPlayerZ );
+
+        final double distPlayer = Math.sqrt ( distPlayerX * distPlayerX + distPlayerZ * distPlayerZ );
+
+        final double rotationSpeed = ( distTarget + distPlayer ) / 1.5D;
+
+        return rotationSpeed;
+    }
+
 
     private void checkOverpitch ( float pitch ) {
         float correctly = Math.abs ( pitch );
@@ -421,7 +450,7 @@ public class Killaura extends Module {
 
         if (Module.getByName ( "AntiBots" ).isToggled ( )) {
             if (GuiComponent.getByName ( "New Detection" ).isToggled ( )) {
-                return Entity.sendedStatus.contains ( entityLivingBase.getName () );
+                return Entity.sendedStatus.contains ( entityLivingBase.getName ( ) );
             } else if (GuiComponent.getByName ( "Swing Detection" ).isToggled ( )) {
                 return entityLivingBase.wasSwinged;
             } else if (GuiComponent.getByName ( "Ultra Detection" ).isToggled ( )) {
@@ -434,7 +463,7 @@ public class Killaura extends Module {
 
     private boolean canHit ( EntityLivingBase entityLivingBase ) {
 
-        return this.checkRotations ( entityLivingBase );
+        return this.checkRotations ( entityLivingBase ) && !AutoPotion.isFakeRotations ( );
     }
 
     private boolean smoothHit ( EntityLivingBase entityLivingBase ) {
@@ -484,31 +513,57 @@ public class Killaura extends Module {
     }
 
 
-    private float computeNextYaw ( float currentYaw , float previousYaw , float targetYaw ) {
+    private float computeNextYaw ( EntityLivingBase entityLivingBase , float currentYaw , float previousYaw , float targetYaw , float finalYaw ) {
 
-        float snappyness = ( float ) this.rotationSpeed.getCurrent ( );
-        float friction = ( float ) this.frictionSpeed.getCurrent ( );
+        float snappyness = 20F;
+        float friction = 2.5F;
 
-        float prevmotion = this.getAbsolutePath ( currentYaw - previousYaw );
-        float delta = this.getRotation ( currentYaw , targetYaw );
+        if (entityLivingBase != null) {
+            double distance = this.getModifiedRotSpeed ( entityLivingBase );
 
-        float absDelta = Math.abs ( delta );
-        float x = absDelta / 180;
-        float accel = ( -( 2 * x - 1 ) * ( 2 * x - 1 ) + 1 ) * snappyness * delta / absDelta;
-        float motion = prevmotion / friction + accel;
+            if (distance >= 1.0D) {
+                distance /= 4.5D;
+            }
+
+            if (distance < 0.16D) {
+                distance = 0.16D;
+            }
+
+            snappyness = ( float ) ( distance * 100D );
+            friction = ( float ) ( distance * 10D ) / 1.3F;
+        }
+
+        final float wrappedFinalYaw = MathHelper.wrapAngleTo180_float ( finalYaw );
+        final float wrappedCurrentYaw = MathHelper.wrapAngleTo180_float ( currentYaw );
+        final boolean isTargetForward = Math.abs ( wrappedFinalYaw - wrappedCurrentYaw ) < 90F;
+
+        if (!isTargetForward) {
+            snappyness *= 1.6D;
+            friction *= 1.6D;
+        }
+
+        final float prevmotion = this.getAbsolutePath ( currentYaw - previousYaw );
+        final float delta = this.getRotation ( currentYaw , targetYaw );
+
+        final float absDelta = Math.abs ( delta );
+        final float x = absDelta / 180;
+        final float accel = ( -( 2 * x - 1 ) * ( 2 * x - 1 ) + 1 ) * snappyness * delta / absDelta;
+        final float motion = prevmotion / friction + accel;
         if (Math.abs ( motion ) > 0.01D) {
             currentYaw += motion;
         }
 
-        double maxMotion = 17D;
+        float maxMotion = 10F;
+        if (entityLivingBase != null)
+            maxMotion = entityLivingBase.width * ( entityLivingBase.width * 100F );
 
         this.doneRotatedYaw = absDelta <= maxMotion;
         return currentYaw;
     }
 
     private float getRotation ( float current , float absolute ) {
-        float delta = absolute - current;
-        float fixedDelta = this.getAbsolutePath ( delta );
+        final float delta = absolute - current;
+        final float fixedDelta = this.getAbsolutePath ( delta );
         return fixedDelta;
     }
 
@@ -523,24 +578,40 @@ public class Killaura extends Module {
         return rotation;
     }
 
-    private float computeNextPitch ( float currentPitch , float previousPitch , float targetPitch ) {
+    private float computeNextPitch ( EntityLivingBase entityLivingBase , float currentPitch , float previousPitch , float targetPitch ) {
 
-        float snappyness = ( float ) this.rotationSpeed.getCurrent ( ) / 2F;
-        float friction = ( float ) this.frictionSpeed.getCurrent ( );
+        float snappyness = 20F;
+        float friction = 2.5F;
 
-        float prevmotion = this.getAbsolutePath ( currentPitch - previousPitch );
-        float delta = this.getRotation ( currentPitch , targetPitch );
+        if (entityLivingBase != null) {
+            double distance = this.getModifiedRotSpeed ( entityLivingBase );
 
-        float absDelta = Math.abs ( delta );
-        float x = absDelta / 180;
-        float accel = ( -( 2 * x - 1 ) * ( 2 * x - 1 ) + 1 ) * snappyness * delta / absDelta;
-        float motion = prevmotion / friction + accel;
+            if (distance < 0.16D)
+                distance = 0.16D;
+
+            if (distance >= 1.0D) {
+                distance /= 4.5D;
+            }
+
+            snappyness = ( float ) ( distance * 100D ) / 2F;
+            friction = ( float ) ( distance * 10D ) / 2F;
+        }
+
+        final float prevmotion = this.getAbsolutePath ( currentPitch - previousPitch );
+        final float delta = this.getRotation ( currentPitch , targetPitch );
+
+        final float absDelta = Math.abs ( delta );
+        final float x = absDelta / 180;
+        final float accel = ( -( 2 * x - 1 ) * ( 2 * x - 1 ) + 1 ) * snappyness * delta / absDelta;
+        final float motion = prevmotion / friction + accel;
 
         if (Math.abs ( motion ) > 0.01D) {
             currentPitch += motion;
         }
 
-        double maxMotion = 15D;
+        float maxMotion = 10F;
+        if (entityLivingBase != null)
+            maxMotion = entityLivingBase.height * ( entityLivingBase.height * 10F );
 
         if (this.lastEntity != null && this.lastEntity != underAttack) {
             if (this.doneRotatedYaw && this.doneRotatedPitch)

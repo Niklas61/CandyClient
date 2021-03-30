@@ -15,6 +15,7 @@ public class PlayerImage {
 
     public static void onRender ( ) {
         if (mc.theWorld != null) {
+
             EntityLivingBase entityLivingBase = Minecraft.thePlayer;
             final int posX = ScaledResolution.getScaledWidth ( ) - 25;
             final int posY = ScaledResolution.getScaledHeight ( ) - 50;
@@ -31,6 +32,10 @@ public class PlayerImage {
                                                EntityLivingBase ent ) {
         GlStateManager.enableColorMaterial ( );
         GlStateManager.pushMatrix ( );
+        GlStateManager.enableDepth ( );
+        GlStateManager.resetColor ( );
+        GlStateManager.enableLighting ( );
+        GlStateManager.enableNormalize ( );
         GlStateManager.translate ( ( float ) posX , ( float ) posY , 50.0F );
         GlStateManager.scale ( ( float ) ( -scale ) , ( float ) scale , ( float ) scale );
         GlStateManager.rotate ( 180.0F , 0.0F , 0.0F , 1.0F );

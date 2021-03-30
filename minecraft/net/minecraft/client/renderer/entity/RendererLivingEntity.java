@@ -5,6 +5,7 @@ import de.staticcode.candy.Candy;
 import de.staticcode.candy.friend.FriendManager;
 import de.staticcode.candy.module.Module;
 import de.staticcode.candy.module.modules.COMBAT.Killaura;
+import de.staticcode.candy.module.modules.PLAYER.AutoPotion;
 import de.staticcode.candy.utils.RotationUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
@@ -105,7 +106,7 @@ public abstract class RendererLivingEntity< T extends EntityLivingBase > extends
                 entityYaw = RotationUtils.server_yaw;
 
                 if (Killaura.underAttack != null || Module.getByName ( "Scaffold" ).isToggled ( )
-                        || Module.getByName ( "Tower" ).isToggled ( ) || Killaura.isTurnOffRotation) {
+                        || Module.getByName ( "Tower" ).isToggled ( ) || Killaura.isTurnOffRotation || AutoPotion.isFakeRotations ( )) {
                     prevYaw = RotationUtils.server_yaw;
                     renderYaw = RotationUtils.server_yaw;
                     prevRotationYaw = RotationUtils.server_yaw;
