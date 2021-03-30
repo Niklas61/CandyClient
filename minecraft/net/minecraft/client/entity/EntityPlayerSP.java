@@ -187,6 +187,7 @@ public class EntityPlayerSP extends AbstractClientPlayer {
      */
 
     public double addY;
+    protected boolean lastSprintState;
 
     public void onUpdateWalkingPlayer ( ) {
         boolean flag = this.isSprinting ( ) || Module.getByName ( "Teleport" ).isToggled ( );
@@ -289,11 +290,6 @@ public class EntityPlayerSP extends AbstractClientPlayer {
 
             if (movementMode.equalsIgnoreCase ( "Normal" ) || Module.getByName ( "Scaffold" ).isToggled ( ))
                 yaw = Minecraft.thePlayer.rotationYaw;
-
-            if (Killaura.underAttack != null) {
-                mc.gameSettings.keyBindSprint.pressed = false;
-                Minecraft.thePlayer.setSprinting ( false );
-            }
 
             float f1 = MathHelper.sin ( yaw * ( float ) Math.PI / 180.0F );
             float f2 = MathHelper.cos ( yaw * ( float ) Math.PI / 180.0F );

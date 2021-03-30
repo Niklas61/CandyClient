@@ -32,6 +32,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class Killaura extends Module {
 
+
+    private static long attackTime;
     public static boolean isTurnOffRotation;
     public static EntityLivingBase underAttack;
     static Killaura killaura;
@@ -78,6 +80,10 @@ public class Killaura extends Module {
         killaura = this;
     }
 
+    public static long getAttackTime ( ) {
+        return attackTime;
+    }
+
     @Override
     public void onUpdate ( ) {
 
@@ -109,6 +115,7 @@ public class Killaura extends Module {
             this.lastEntity = null;
             this.hitAnimaton.resetTimings ( );
             this.sniperTimings.resetTimings ( );
+            attackTime = 0L;
 
             if (this.smoothRotationsButton.isToggled ( )) {
                 this.updateTurnoffRotation ( );
@@ -133,23 +140,8 @@ public class Killaura extends Module {
         this.doneRotatedPitch = false;
         this.timings.resetTimings ( );
         this.hitAnimaton.resetTimings ( );
+        attackTime = 0L;
         super.onEnable ( );
-    }
-
-    @Override
-    public void onDisable ( ) {
-        if (this.smoothRotationsButton.isToggled ( ))
-            this.updateTurnoffRotation ( );
-
-        underAttack = null;
-        this.delaySwitch = 0L;
-        this.lastEntity = null;
-
-        if (this.isBlocking)
-            this.setUnblock ( );
-
-        ItemRenderer.isBlocking = false;
-        super.onDisable ( );
     }
 
     public void updateTurnoffRotation ( ) {
@@ -246,54 +238,21 @@ public class Killaura extends Module {
         }
     }
 
-    private void attackEntity ( EntityLivingBase entityLivingBase ) {
+    @Override
+    public void onDisable ( ) {
+        if (this.smoothRotationsButton.isToggled ( ))
+            this.updateTurnoffRotation ( );
 
-        if (this.checkDelay ( entityLivingBase ) && !this.checkDistance ( entityLivingBase , this.rangeSlider.getCurrent ( ) )) {
+        underAttack = null;
+        this.delaySwitch = 0L;
+        this.lastEntity = null;
+        attackTime = 0L;
 
-            if (this.autoMiss ( ) || this.overPitched)
-                return;
+        if (this.isBlocking)
+            this.setUnblock ( );
 
-            if (this.isBlocking)
-                this.setUnblock ( );
-
-            //Swing item before automiss or pitch is over 90 Degress
-            this.swingItem ( );
-
-            boolean shouldAttack = true;
-
-            if (this.sniperCursered) {
-                shouldAttack = false;
-                this.sniperTimings.resetTimings ( );
-                this.sniperCursered = false;
-            }
-
-
-            if (shouldAttack) {
-                if (!Module.getByName ( "NoSlowdown" ).isToggled ( ))
-                    mc.playerController.attackEntity ( Minecraft.thePlayer , entityLivingBase );
-                else {
-                    mc.getNetHandler ( ).addToSendQueue ( new C02PacketUseEntity ( entityLivingBase , C02PacketUseEntity.Action.ATTACK ) );
-                }
-            }
-
-            if (this.particlesButton.isToggled ( )) {
-                Minecraft.thePlayer.onCriticalHit ( entityLivingBase );
-                Minecraft.thePlayer.onEnchantmentCritical ( entityLivingBase );
-            }
-
-            this.timings.resetTimings ( );
-
-            if (this.lastEntity == null)
-                this.lastEntity = entityLivingBase;
-
-            if (this.shouldBlock ( entityLivingBase ))
-                this.setBlocking ( );
-            else {
-                if (ItemRenderer.isBlocking && this.isBlocking)
-                    this.setUnblock ( );
-            }
-        }
-
+        ItemRenderer.isBlocking = false;
+        super.onDisable ( );
     }
 
     private void swingItem ( ) {
@@ -512,6 +471,73 @@ public class Killaura extends Module {
         return this.timings.hasReached ( ( long ) this.delaySlider.getCurrent ( ) + random );
     }
 
+    private void attackEntity ( EntityLivingBase entityLivingBase ) {
+
+        if (this.checkDelay ( entityLivingBase ) && !this.checkDistance ( entityLivingBase , this.rangeSlider.getCurrent ( ) )) {
+
+            if (this.autoMiss ( ) || this.overPitched)
+                return;
+
+            if (this.isBlocking)
+                this.setUnblock ( );
+
+            //Swing item before automiss or pitch is over 90 Degress
+            this.swingItem ( );
+
+            boolean shouldAttack = true;
+
+            if (this.sniperCursered) {
+                shouldAttack = false;
+                this.sniperTimings.resetTimings ( );
+                this.sniperCursered = false;
+            }
+
+
+            if (shouldAttack) {
+                if (!Module.getByName ( "NoSlowdown" ).isToggled ( ))
+                    mc.playerController.attackEntity ( Minecraft.thePlayer , entityLivingBase );
+                else {
+                    mc.getNetHandler ( ).addToSendQueue ( new C02PacketUseEntity ( entityLivingBase , C02PacketUseEntity.Action.ATTACK ) );
+                }
+                attackTime++;
+            }
+
+            if (this.particlesButton.isToggled ( )) {
+                Minecraft.thePlayer.onCriticalHit ( entityLivingBase );
+                Minecraft.thePlayer.onEnchantmentCritical ( entityLivingBase );
+            }
+
+            this.timings.resetTimings ( );
+
+            if (this.lastEntity == null)
+                this.lastEntity = entityLivingBase;
+
+            if (this.shouldBlock ( entityLivingBase ))
+                this.setBlocking ( );
+            else {
+                if (ItemRenderer.isBlocking && this.isBlocking)
+                    this.setUnblock ( );
+            }
+        }
+
+    }
+
+    private float getRotation ( float current , float absolute ) {
+        final float delta = absolute - current;
+        final float fixedDelta = this.getAbsolutePath ( delta );
+        return fixedDelta;
+    }
+
+
+    private float getAbsolutePath ( float rotation ) {
+        rotation = rotation % 360F;
+        if (rotation > 180F) {
+            rotation -= 360F;
+        } else if (rotation <= -180F) {
+            rotation += 360F;
+        }
+        return rotation;
+    }
 
     private float computeNextYaw ( EntityLivingBase entityLivingBase , float currentYaw , float previousYaw , float targetYaw , float finalYaw ) {
 
@@ -521,13 +547,14 @@ public class Killaura extends Module {
         if (entityLivingBase != null) {
             double distance = this.getModifiedRotSpeed ( entityLivingBase );
 
-            if (distance >= 1.0D) {
+            if (distance >= 1.0D)
                 distance /= 4.5D;
-            }
 
-            if (distance < 0.16D) {
+            if (distance < 0.16D)
                 distance = 0.16D;
-            }
+
+            if (distance > 1D)
+                distance = 1D;
 
             snappyness = ( float ) ( distance * 100D );
             friction = ( float ) ( distance * 10D ) / 1.3F;
@@ -559,67 +586,6 @@ public class Killaura extends Module {
 
         this.doneRotatedYaw = absDelta <= maxMotion;
         return currentYaw;
-    }
-
-    private float getRotation ( float current , float absolute ) {
-        final float delta = absolute - current;
-        final float fixedDelta = this.getAbsolutePath ( delta );
-        return fixedDelta;
-    }
-
-
-    private float getAbsolutePath ( float rotation ) {
-        rotation = rotation % 360F;
-        if (rotation > 180F) {
-            rotation -= 360F;
-        } else if (rotation <= -180F) {
-            rotation += 360F;
-        }
-        return rotation;
-    }
-
-    private float computeNextPitch ( EntityLivingBase entityLivingBase , float currentPitch , float previousPitch , float targetPitch ) {
-
-        float snappyness = 20F;
-        float friction = 2.5F;
-
-        if (entityLivingBase != null) {
-            double distance = this.getModifiedRotSpeed ( entityLivingBase );
-
-            if (distance < 0.16D)
-                distance = 0.16D;
-
-            if (distance >= 1.0D) {
-                distance /= 4.5D;
-            }
-
-            snappyness = ( float ) ( distance * 100D ) / 2F;
-            friction = ( float ) ( distance * 10D ) / 2F;
-        }
-
-        final float prevmotion = this.getAbsolutePath ( currentPitch - previousPitch );
-        final float delta = this.getRotation ( currentPitch , targetPitch );
-
-        final float absDelta = Math.abs ( delta );
-        final float x = absDelta / 180;
-        final float accel = ( -( 2 * x - 1 ) * ( 2 * x - 1 ) + 1 ) * snappyness * delta / absDelta;
-        final float motion = prevmotion / friction + accel;
-
-        if (Math.abs ( motion ) > 0.01D) {
-            currentPitch += motion;
-        }
-
-        float maxMotion = 10F;
-        if (entityLivingBase != null)
-            maxMotion = entityLivingBase.height * ( entityLivingBase.height * 10F );
-
-        if (this.lastEntity != null && this.lastEntity != underAttack) {
-            if (this.doneRotatedYaw && this.doneRotatedPitch)
-                this.lastEntity = null;
-        }
-
-        this.doneRotatedPitch = absDelta <= maxMotion;
-        return currentPitch;
     }
 
 
@@ -698,6 +664,53 @@ public class Killaura extends Module {
 
     public static Killaura getKillaura ( ) {
         return killaura;
+    }
+
+    private float computeNextPitch ( EntityLivingBase entityLivingBase , float currentPitch , float previousPitch , float targetPitch ) {
+
+        float snappyness = 20F;
+        float friction = 2.5F;
+
+        if (entityLivingBase != null) {
+            double distance = this.getModifiedRotSpeed ( entityLivingBase );
+
+            if (distance >= 1.0D)
+                distance /= 4.5D;
+
+
+            if (distance < 0.16D)
+                distance = 0.16D;
+
+            if (distance > 1D)
+                distance = 1D;
+
+            snappyness = ( float ) ( distance * 100D ) / 2F;
+            friction = ( float ) ( distance * 10D ) / 2F;
+        }
+
+        final float prevmotion = this.getAbsolutePath ( currentPitch - previousPitch );
+        final float delta = this.getRotation ( currentPitch , targetPitch );
+
+        final float absDelta = Math.abs ( delta );
+        final float x = absDelta / 180;
+        final float accel = ( -( 2 * x - 1 ) * ( 2 * x - 1 ) + 1 ) * snappyness * delta / absDelta;
+        final float motion = prevmotion / friction + accel;
+
+        if (Math.abs ( motion ) > 0.01D) {
+            currentPitch += motion;
+        }
+
+        float maxMotion = 10F;
+        if (entityLivingBase != null)
+            maxMotion = entityLivingBase.height * ( entityLivingBase.height * 10F );
+
+        if (this.lastEntity != null && this.lastEntity != underAttack) {
+            if (this.doneRotatedYaw && this.doneRotatedPitch)
+                this.lastEntity = null;
+        }
+
+        this.doneRotatedPitch = absDelta <= maxMotion;
+        return currentPitch;
     }
 }
 

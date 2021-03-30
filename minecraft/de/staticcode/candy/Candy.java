@@ -172,6 +172,7 @@ public class Candy {
         new RedeskyFly ( );
         new FakeLagg ( );
         new AutoPotion ( );
+        new SmoothAim ( );
 
         // Commands
         new ConfigCommand ( );
