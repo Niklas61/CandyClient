@@ -1504,7 +1504,7 @@ public class Minecraft implements IThreadListener, IPlayerUsage {
 
             Display.setFullscreen ( this.fullscreen );
             Display.setVSyncEnabled ( this.gameSettings.enableVsync );
-
+            Display.setResizable ( true );
             this.updateDisplay ( );
         } catch ( Exception exception ) {
             logger.error ( "Couldn't toggle fullscreen" , exception );

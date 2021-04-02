@@ -94,7 +94,7 @@ public class SmoothAim extends Module {
 
     private BlickWinkel3D getRotationsToEntity ( EntityLivingBase entityLivingBase ) {
         Location3D playerLoc = new Location3D ( mc.thePlayer.posX , mc.thePlayer.posY + mc.thePlayer.getEyeHeight ( ) , mc.thePlayer.posZ );
-        Location3D entityLoc = new Location3D ( entityLivingBase.posX , entityLivingBase.posY + entityLivingBase.getEyeHeight ( ) , entityLivingBase.posZ );
+        Location3D entityLoc = new Location3D ( entityLivingBase.posX , entityLivingBase.posY + entityLivingBase.getEyeHeight ( ) / 2 , entityLivingBase.posZ );
         return new BlickWinkel3D ( playerLoc , entityLoc );
     }
 

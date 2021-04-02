@@ -56,7 +56,7 @@ public class Killaura extends Module {
 
     private boolean sniperCursered;
     private final Timings sniperTimings = new Timings ( );
-
+    private final GuiComponent fovSlider = new GuiComponent ( "FOV" , this , 360D , 40D , 40D );
     private final GuiComponent preAimSlider = new GuiComponent ( "Pre-Aim Range" , this , 2.2D , 0.1D , 0.1D );
     private final GuiComponent rangeSlider = new GuiComponent ( "Attack Reach" , this , 8D , 1D , 1D );
     private final GuiComponent delaySlider = new GuiComponent ( "Ticks" , this , 700D , 10D , 80D );
@@ -95,7 +95,7 @@ public class Killaura extends Module {
         if (Minecraft.thePlayer == null)
             return;
 
-        if (Minecraft.thePlayer.ticksExisted < 50)
+        if (Minecraft.thePlayer.ticksExisted < 100)
             return;
 
         if (Minecraft.thePlayer.posX == Double.NaN || Minecraft.thePlayer.posZ == Double.NaN || Minecraft.thePlayer.posY == Double.NaN)
@@ -368,8 +368,15 @@ public class Killaura extends Module {
                         EntityLivingBase entityLivingBase = ( EntityLivingBase ) entities;
                         if (this.checkEntity ( entityLivingBase )) {
 
-                            double currentRange = this.rangeSlider.getCurrent ( );
-                            double preAimRange = this.preAimSlider.getCurrent ( );
+                            final double currentRange = this.rangeSlider.getCurrent ( );
+                            final double preAimRange = this.preAimSlider.getCurrent ( );
+                            final float targetYaw = MathHelper.wrapAngleTo180_float ( this.getRotations ( entityLivingBase )[ 0 ] );
+                            final float playerYaw = MathHelper.wrapAngleTo180_float ( mc.thePlayer.rotationYaw );
+                            final float yawDist = Math.abs ( playerYaw - targetYaw );
+
+                            if (yawDist > this.fovSlider.getCurrent ( ))
+                                continue;
+
                             if (this.checkDistance ( entityLivingBase , ( this.preAimButton.isToggled ( ) ? currentRange + preAimRange : currentRange ) ))
                                 continue;
 
@@ -553,8 +560,8 @@ public class Killaura extends Module {
             if (distance < 0.16D)
                 distance = 0.16D;
 
-            if (distance > 1D)
-                distance = 1D;
+            if (distance > 0.85D)
+                distance = 0.85D;
 
             snappyness = ( float ) ( distance * 100D );
             friction = ( float ) ( distance * 10D ) / 1.3F;
@@ -681,8 +688,8 @@ public class Killaura extends Module {
             if (distance < 0.16D)
                 distance = 0.16D;
 
-            if (distance > 1D)
-                distance = 1D;
+            if (distance > 0.85D)
+                distance = 0.85D;
 
             snappyness = ( float ) ( distance * 100D ) / 2F;
             friction = ( float ) ( distance * 10D ) / 2F;
