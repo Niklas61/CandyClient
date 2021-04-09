@@ -58,6 +58,13 @@ public class Module {
         }
     }
 
+    public static void renderAllModules ( ) {
+        for ( Module modules : getModuleList ( ) ) {
+            if (modules.isToggled ( ))
+                modules.onRender ( );
+        }
+    }
+
     public static void toggleOnKeyPress ( int key ) {
         for ( Module modules : getModuleList ( ) ) {
             if (modules.getKey ( ) == key)
@@ -86,6 +93,10 @@ public class Module {
     }
 
     public void onUpdate ( ) {
+    }
+
+    public void onRender ( ) {
+
     }
 
     public void onEnable ( ) {

@@ -18,7 +18,6 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.item.EntityArmorStand;
 import net.minecraft.item.ItemSword;
-import net.minecraft.network.play.client.C02PacketUseEntity;
 import net.minecraft.network.play.client.C07PacketPlayerDigging;
 import net.minecraft.network.play.client.C08PacketPlayerBlockPlacement;
 import net.minecraft.network.play.client.C0APacketAnimation;
@@ -51,6 +50,8 @@ public class Killaura extends Module {
 
     private long delaySwitch = 0L;
     private boolean overPitched;
+
+    private long rotationUpdateTicks;
 
     private Entity lastEntity;
 
@@ -95,18 +96,15 @@ public class Killaura extends Module {
         if (Minecraft.thePlayer == null)
             return;
 
-        if (Minecraft.thePlayer.ticksExisted < 100)
-            return;
-
         if (Minecraft.thePlayer.posX == Double.NaN || Minecraft.thePlayer.posZ == Double.NaN || Minecraft.thePlayer.posY == Double.NaN)
             return;
 
-        if (mc.currentScreen != null)
-            return;
+//        if (mc.currentScreen != null)
+//            return;
 
         EntityLivingBase entityLivingBase = this.getNearest ( );
 
-        if (entityLivingBase != null) {
+        if (entityLivingBase != null && mc.thePlayer.ticksExisted > 90) {
             underAttack = entityLivingBase;
             this.sendLooks ( entityLivingBase );
         } else {
@@ -117,13 +115,12 @@ public class Killaura extends Module {
             this.sniperTimings.resetTimings ( );
             attackTime = 0L;
 
-            if (this.smoothRotationsButton.isToggled ( )) {
-                this.updateTurnoffRotation ( );
-            }
+            if (mc.thePlayer.ticksExisted > 10)
+                if (this.smoothRotationsButton.isToggled ( ))
+                    this.updateTurnoffRotation ( );
 
-            if (this.isBlocking) {
+            if (this.isBlocking)
                 this.setUnblock ( );
-            }
 
             ItemRenderer.isBlocking = false;
         }
@@ -148,12 +145,13 @@ public class Killaura extends Module {
         isTurnOffRotation = true;
 
         float yaw = this.computeNextYaw ( null , RotationUtils.server_yaw , previousYaw , Minecraft.thePlayer.rotationYaw , Minecraft.thePlayer.rotationYaw );
-        float pitch = this.computeNextPitch ( null , RotationUtils.server_pitch , previousPitch , Minecraft.thePlayer.rotationPitch );
+        float pitch = this.computeNextPitch ( RotationUtils.server_pitch , previousPitch , Minecraft.thePlayer.rotationPitch );
 
         if (this.doneRotatedYaw && this.doneRotatedPitch) {
             this.doneRotatedYaw = false;
             this.doneRotatedPitch = false;
             isTurnOffRotation = false;
+            this.setRotationUpdateTicks ( 0L );
         }
 
         RotationUtils.server_yaw = yaw;
@@ -182,7 +180,7 @@ public class Killaura extends Module {
 
         if (this.smoothRotationsButton.isToggled ( )) {
             yaw = this.computeNextYaw ( entityLivingBase , RotationUtils.server_yaw , previousYaw , yaw , rotations[ 0 ] );
-            pitch = this.computeNextPitch ( entityLivingBase , RotationUtils.server_pitch , previousPitch , pitch );
+            pitch = this.computeNextPitch ( RotationUtils.server_pitch , previousPitch , pitch );
         }
 
         RotationUtils.server_yaw = yaw;
@@ -223,7 +221,7 @@ public class Killaura extends Module {
 
         final double distPlayer = Math.sqrt ( distPlayerX * distPlayerX + distPlayerZ * distPlayerZ );
 
-        final double rotationSpeed = ( distTarget + distPlayer ) / 1.5D;
+        final double rotationSpeed = ( distTarget + distPlayer ) / 2;
 
         return rotationSpeed;
     }
@@ -428,7 +426,6 @@ public class Killaura extends Module {
     }
 
     private boolean canHit ( EntityLivingBase entityLivingBase ) {
-
         return this.checkRotations ( entityLivingBase ) && !AutoPotion.isFakeRotations ( );
     }
 
@@ -501,11 +498,7 @@ public class Killaura extends Module {
 
 
             if (shouldAttack) {
-                if (!Module.getByName ( "NoSlowdown" ).isToggled ( ))
-                    mc.playerController.attackEntity ( Minecraft.thePlayer , entityLivingBase );
-                else {
-                    mc.getNetHandler ( ).addToSendQueue ( new C02PacketUseEntity ( entityLivingBase , C02PacketUseEntity.Action.ATTACK ) );
-                }
+                mc.playerController.attackEntity ( Minecraft.thePlayer , entityLivingBase );
                 attackTime++;
             }
 
@@ -548,32 +541,20 @@ public class Killaura extends Module {
 
     private float computeNextYaw ( EntityLivingBase entityLivingBase , float currentYaw , float previousYaw , float targetYaw , float finalYaw ) {
 
-        float snappyness = 20F;
-        float friction = 2.5F;
+        float snappyness = 25F;
+        float friction = 1F;
 
         if (entityLivingBase != null) {
-            double distance = this.getModifiedRotSpeed ( entityLivingBase );
+            double movementSpeed = this.getModifiedRotSpeed ( entityLivingBase );
 
-            if (distance >= 1.0D)
-                distance /= 4.5D;
+            if (movementSpeed > 1.0D)
+                movementSpeed = 1.0D;
 
-            if (distance < 0.16D)
-                distance = 0.16D;
+            if (movementSpeed > 0.1D)
+                snappyness = ( float ) ( ( movementSpeed * 2.5D ) * 100D );
 
-            if (distance > 0.85D)
-                distance = 0.85D;
-
-            snappyness = ( float ) ( distance * 100D );
-            friction = ( float ) ( distance * 10D ) / 1.3F;
-        }
-
-        final float wrappedFinalYaw = MathHelper.wrapAngleTo180_float ( finalYaw );
-        final float wrappedCurrentYaw = MathHelper.wrapAngleTo180_float ( currentYaw );
-        final boolean isTargetForward = Math.abs ( wrappedFinalYaw - wrappedCurrentYaw ) < 90F;
-
-        if (!isTargetForward) {
-            snappyness *= 1.6D;
-            friction *= 1.6D;
+            if (snappyness > 70F)
+                snappyness = 70F;
         }
 
         final float prevmotion = this.getAbsolutePath ( currentYaw - previousYaw );
@@ -583,18 +564,41 @@ public class Killaura extends Module {
         final float x = absDelta / 180;
         final float accel = ( -( 2 * x - 1 ) * ( 2 * x - 1 ) + 1 ) * snappyness * delta / absDelta;
         final float motion = prevmotion / friction + accel;
-        if (Math.abs ( motion ) > 0.01D) {
+
+        if (absDelta > 0.0D)
+            this.setRotationUpdateTicks ( this.getRotationUpdateTicks ( ) + 1L );
+
+        if (this.getRotationUpdateTicks ( ) > 3L)
             currentYaw += motion;
-        }
 
-        float maxMotion = 10F;
-        if (entityLivingBase != null)
-            maxMotion = entityLivingBase.width * ( entityLivingBase.width * 100F );
-
-        this.doneRotatedYaw = absDelta <= maxMotion;
+        this.doneRotatedYaw = Math.abs ( this.getRotation ( currentYaw , targetYaw ) ) <= 3F;
         return currentYaw;
     }
 
+    private float computeNextPitch ( float currentPitch , float previousPitch , float targetPitch ) {
+
+        float snappyness = 35F;
+        float friction = 1F;
+
+        final float prevmotion = this.getAbsolutePath ( currentPitch - previousPitch );
+        final float delta = this.getRotation ( currentPitch , targetPitch );
+
+        final float absDelta = Math.abs ( delta );
+        final float x = absDelta / 180;
+        final float accel = ( -( 2 * x - 1 ) * ( 2 * x - 1 ) + 1 ) * snappyness * delta / absDelta;
+        final float motion = prevmotion / friction + accel;
+
+        if (absDelta > 0.0D && this.getRotationUpdateTicks ( ) > 3L)
+            currentPitch += motion;
+
+        if (this.lastEntity != null && this.lastEntity != underAttack) {
+            if (this.doneRotatedYaw && this.doneRotatedPitch)
+                this.lastEntity = null;
+        }
+
+        this.doneRotatedPitch = Math.abs ( this.getRotation ( currentPitch , targetPitch ) ) <= 2F;
+        return currentPitch;
+    }
 
     private boolean checkRotations ( Entity e ) {
         if (!this.smoothRotationsButton.isToggled ( ))
@@ -602,6 +606,9 @@ public class Killaura extends Module {
 
         if (this.lastEntity != null && this.lastEntity != e)
             return false;
+
+        if (this.doneRotatedYaw && this.doneRotatedPitch)
+            this.setRotationUpdateTicks ( 0L );
 
         return this.doneRotatedYaw && this.doneRotatedPitch;
     }
@@ -622,24 +629,32 @@ public class Killaura extends Module {
                 y -= ( e.prevPosY - e.lastTickPosY );
         }
 
-        Location3D startLoc = new Location3D ( fX , fY + ( Minecraft.thePlayer.getEyeHeight ( ) / 2D ) , fZ );
-        Location3D endLoc = new Location3D ( x , y + ( e.getEyeHeight ( ) / 4D ) , z );
+        Location3D startLoc = new Location3D ( fX , fY + mc.thePlayer.getEyeHeight ( ) , fZ );
+        Location3D endLoc = new Location3D ( x , y + e.getEyeHeight ( ) / 2 , z );
         BlickWinkel3D blickWinkel3D = new BlickWinkel3D ( startLoc , endLoc );
 
         //Jitter rotations -> yaw & pitch
         double distance = startLoc.distance ( endLoc );
         double maxRndm = distance * 2D;
 
-        if (maxRndm < 6D)
-            maxRndm = 6D;
+        if (maxRndm < 3.0D)
+            maxRndm = 3.0D;
 
-        double randomYaw = ThreadLocalRandom.current ( ).nextDouble ( 1D , maxRndm );
-        double randomPitch = ThreadLocalRandom.current ( ).nextDouble ( 1D , maxRndm );
+        if (maxRndm > 7.5D)
+            maxRndm = 7.5D;
+
+        double randomYaw = 0D;
+        double randomPitch = 0D;
+
+        if (this.checkDistance ( ( EntityLivingBase ) e , this.rangeSlider.getCurrent ( ) )) {
+            randomYaw = ThreadLocalRandom.current ( ).nextDouble ( -maxRndm , maxRndm );
+            randomPitch = ThreadLocalRandom.current ( ).nextDouble ( -maxRndm , maxRndm );
+        }
 
         float yaw = ( float ) blickWinkel3D.getYaw ( ) - ( float ) randomYaw;
         float pitch = ( float ) blickWinkel3D.getPitch ( ) + ( float ) randomPitch;
 
-        if (( this.sniperTimings.hasReached ( 6000L ) || ( Minecraft.thePlayer.hurtTimeNoCam > 2 && Minecraft.thePlayer.hurtTimeNoCam < 4 ) ) && this.doneRotatedPitch && this.doneRotatedYaw && this.sniperCursorButton.isToggled ( )) {
+        if (( this.sniperTimings.hasReached ( 7000L ) || ( Minecraft.thePlayer.hurtTimeNoCam > 0 && Minecraft.thePlayer.hurtTimeNoCam < 3 ) ) && this.doneRotatedPitch && this.doneRotatedYaw && this.sniperCursorButton.isToggled ( )) {
             double maxSnipe = Minecraft.thePlayer.hurtTimeNoCam > 0 ? 20D : 15D;
             double randomSnipe = ThreadLocalRandom.current ( ).nextDouble ( 5D , maxSnipe );
             int snipeDirection = ThreadLocalRandom.current ( ).nextBoolean ( ) ? 1 : -1;
@@ -649,21 +664,17 @@ public class Killaura extends Module {
             else if (snipeDirection == -1)
                 yaw -= randomSnipe;
 
-            float newPitch = ( float ) ( pitch - ( randomSnipe * 1.6D ) );
+            float newPitch = ( float ) ( pitch - ( randomSnipe * 1.5D ) );
 
-            if (newPitch < 90F)
+            if (Math.abs ( newPitch ) < 90F)
                 pitch = newPitch;
 
             this.sniperCursered = true;
         }
 
         if (this.smoothAimButton.isToggled ( )) {
-            if (fY >= y && startLoc.distance ( endLoc ) <= 2D) {
-                pitch = 35F;
-            }
-
-            if (fY >= y && Minecraft.thePlayer.hurtTimeNoCam > 0)
-                pitch -= 20F;
+            if (fY >= y && Minecraft.thePlayer.hurtTimeNoCam > 0 && mc.thePlayer.hurtTimeNoCam < 5)
+                pitch += 10F;
         }
 
         return new float[]{ yaw , pitch };
@@ -673,53 +684,15 @@ public class Killaura extends Module {
         return killaura;
     }
 
-    private float computeNextPitch ( EntityLivingBase entityLivingBase , float currentPitch , float previousPitch , float targetPitch ) {
+    private long getRotationUpdateTicks ( ) {
+        return rotationUpdateTicks;
+    }
 
-        float snappyness = 20F;
-        float friction = 2.5F;
-
-        if (entityLivingBase != null) {
-            double distance = this.getModifiedRotSpeed ( entityLivingBase );
-
-            if (distance >= 1.0D)
-                distance /= 4.5D;
-
-
-            if (distance < 0.16D)
-                distance = 0.16D;
-
-            if (distance > 0.85D)
-                distance = 0.85D;
-
-            snappyness = ( float ) ( distance * 100D ) / 2F;
-            friction = ( float ) ( distance * 10D ) / 2F;
-        }
-
-        final float prevmotion = this.getAbsolutePath ( currentPitch - previousPitch );
-        final float delta = this.getRotation ( currentPitch , targetPitch );
-
-        final float absDelta = Math.abs ( delta );
-        final float x = absDelta / 180;
-        final float accel = ( -( 2 * x - 1 ) * ( 2 * x - 1 ) + 1 ) * snappyness * delta / absDelta;
-        final float motion = prevmotion / friction + accel;
-
-        if (Math.abs ( motion ) > 0.01D) {
-            currentPitch += motion;
-        }
-
-        float maxMotion = 10F;
-        if (entityLivingBase != null)
-            maxMotion = entityLivingBase.height * ( entityLivingBase.height * 10F );
-
-        if (this.lastEntity != null && this.lastEntity != underAttack) {
-            if (this.doneRotatedYaw && this.doneRotatedPitch)
-                this.lastEntity = null;
-        }
-
-        this.doneRotatedPitch = absDelta <= maxMotion;
-        return currentPitch;
+    private void setRotationUpdateTicks ( long rotationUpdateTicks ) {
+        this.rotationUpdateTicks = rotationUpdateTicks;
     }
 }
+
 
 class Raycast {
 

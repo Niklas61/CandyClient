@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.gson.JsonSyntaxException;
+import de.staticcode.candy.gui.components.GuiComponent;
 import de.staticcode.candy.module.Module;
 import net.minecraft.block.*;
 import net.minecraft.block.material.Material;
@@ -243,7 +244,7 @@ public class RenderGlobal implements IWorldAccess, IResourceManagerReloadListene
     }
 
     protected boolean isRenderEntityOutlines ( ) {
-        if (Module.getByName ( "ESP" ).isToggled ( ))
+        if (Module.getByName ( "ESP" ).isToggled ( ) && !GuiComponent.getByName ( "ESP Mode" ).getActiveMode ( ).equals ( "Box" ))
             return true;
 
         return this.entityOutlineFramebuffer != null && this.entityOutlineShader != null && Minecraft.thePlayer != null

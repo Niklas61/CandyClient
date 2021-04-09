@@ -90,7 +90,6 @@ public class AutoPotion extends Module {
         if (regenSlot != null && Minecraft.thePlayer.getHealth ( ) <= ( Minecraft.thePlayer.getMaxHealth ( ) / 1.3F )) {
             this.sendRotations = true;
             setFakeRotations ( true );
-            RotationUtils.server_pitch = 90F;
             this.usePotion ( regenSlot );
         }
 
@@ -98,7 +97,6 @@ public class AutoPotion extends Module {
             if (Minecraft.thePlayer.getActivePotionEffect ( Potion.moveSpeed ) == null) {
                 this.sendRotations = true;
                 setFakeRotations ( true );
-                RotationUtils.server_pitch = 90F;
                 this.usePotion ( speedSlot );
             }
         }
@@ -111,7 +109,7 @@ public class AutoPotion extends Module {
         }
 
         if (this.oldSlot != -1) {
-            if (this.timings.hasReached ( 150L )) {
+            if (this.timings.hasReached ( 100L )) {
                 Minecraft.thePlayer.inventory.currentItem = this.oldSlot;
                 this.oldSlot = -1;
                 this.sendRotations = false;

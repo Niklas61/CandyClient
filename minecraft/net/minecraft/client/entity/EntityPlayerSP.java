@@ -310,11 +310,7 @@ public class EntityPlayerSP extends AbstractClientPlayer {
 
         if (Minecraft.thePlayer == null)
             return;
-
-        if (Killaura.underAttack != null) {
-            this.setSprinting ( false );
-            mc.gameSettings.keyBindSprint.pressed = false;
-        }
+        
 
         int difference = ( int ) ( ( MathHelper.wrapAngleTo180_float ( this.rotationYaw - RotationUtils.server_yaw - 23.5F - 135 ) + 180 ) / 45 );
         float strafe = this.moveStrafing;

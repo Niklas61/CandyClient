@@ -3,6 +3,7 @@ package net.minecraft.client.renderer;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.gson.JsonSyntaxException;
+import de.staticcode.candy.module.modules.RENDER.ModuleScale;
 import de.staticcode.candy.utils.RenderUtils;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockBed;
@@ -388,6 +389,8 @@ public class EntityRenderer implements IResourceManagerReloadListener {
         } else if (this.bossColorModifier > 0.0F) {
             this.bossColorModifier -= 0.0125F;
         }
+
+
     }
 
     public ShaderGroup getShaderGroup ( ) {
@@ -1401,6 +1404,9 @@ public class EntityRenderer implements IResourceManagerReloadListener {
             this.renderCloudsCheck ( renderglobal , partialTicks , pass );
         }
 
+        ModuleScale.renderAllModules ( );
+        GL11.glColor3f ( 1F , 1F , 1F );
+
         this.mc.mcProfiler.endStartSection ( "hand" );
 
         if (this.renderHand) {
@@ -1408,6 +1414,7 @@ public class EntityRenderer implements IResourceManagerReloadListener {
             this.renderHand ( partialTicks , pass );
             this.renderWorldDirections ( partialTicks );
         }
+
     }
 
     private void renderCloudsCheck ( RenderGlobal renderGlobalIn , float partialTicks , int pass ) {
