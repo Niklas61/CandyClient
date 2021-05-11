@@ -147,6 +147,11 @@ public class Killaura extends Module {
         float yaw = this.computeNextYaw ( null , RotationUtils.server_yaw , previousYaw , Minecraft.thePlayer.rotationYaw , Minecraft.thePlayer.rotationYaw );
         float pitch = this.computeNextPitch ( RotationUtils.server_pitch , previousPitch , Minecraft.thePlayer.rotationPitch );
 
+        if (Float.isNaN ( RotationUtils.server_pitch ) || Float.isNaN ( RotationUtils.server_yaw )) {
+            this.doneRotatedPitch = true;
+            this.doneRotatedYaw = true;
+        }
+
         if (this.doneRotatedYaw && this.doneRotatedPitch) {
             this.doneRotatedYaw = false;
             this.doneRotatedPitch = false;
@@ -551,10 +556,10 @@ public class Killaura extends Module {
                 movementSpeed = 1.0D;
 
             if (movementSpeed > 0.1D)
-                snappyness = ( float ) ( ( movementSpeed * 2.5D ) * 100D );
+                snappyness = ( float ) ( ( movementSpeed * 1.76D ) * 100D );
 
-            if (snappyness > 70F)
-                snappyness = 70F;
+            if (snappyness > 82F)
+                snappyness = 82F;
         }
 
         final float prevmotion = this.getAbsolutePath ( currentYaw - previousYaw );
@@ -615,22 +620,22 @@ public class Killaura extends Module {
 
     private float[] getRotations ( Entity e ) {
         double x = e.posX;
-        int y = ( int ) e.posY;
+        double y = e.posY;
         double z = e.posZ;
         double fX = Minecraft.thePlayer.posX;
         double fY = Minecraft.thePlayer.posY;
         double fZ = Minecraft.thePlayer.posZ;
 
         if (this.smoothAimButton.isToggled ( )) {
-            if (Minecraft.thePlayer.posY - Minecraft.thePlayer.lastTickPosY < -0.225D)
-                fY -= ( Minecraft.thePlayer.posY - Minecraft.thePlayer.lastTickPosY );
 
-            if (e.posY - e.lastTickPosY < -0.225D)
-                y -= ( e.prevPosY - e.lastTickPosY );
+            if (mc.thePlayer.motionY > 0.0D
+                    && ( mc.thePlayer.moveForward != 0.0F || mc.thePlayer.moveStrafing != 0.0F )) {
+                fY -= mc.thePlayer.motionY;
+            }
         }
 
-        Location3D startLoc = new Location3D ( fX , fY + mc.thePlayer.getEyeHeight ( ) , fZ );
-        Location3D endLoc = new Location3D ( x , y + e.getEyeHeight ( ) / 2 , z );
+        Location3D startLoc = new Location3D ( fX , fY , fZ );
+        Location3D endLoc = new Location3D ( x , y - 0.6D , z );
         BlickWinkel3D blickWinkel3D = new BlickWinkel3D ( startLoc , endLoc );
 
         //Jitter rotations -> yaw & pitch
