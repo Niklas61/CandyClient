@@ -23,8 +23,8 @@ import org.lwjgl.opengl.Display;
 
 public class Candy {
 
-    public static String NAME = "Candy";
-    public static String VERSION = "b7";
+    public static String NAME = "Candy-athletics";
+    public static String VERSION = "b8";
 
     static Candy radium;
 

@@ -13,6 +13,9 @@ import de.staticcode.candy.utils.Timings;
 import de.staticcode.ui.BlickWinkel3D;
 import de.staticcode.ui.Location3D;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGameOver;
+import net.minecraft.client.gui.inventory.GuiChest;
+import net.minecraft.client.gui.inventory.GuiInventory;
 import net.minecraft.client.renderer.ItemRenderer;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
@@ -37,6 +40,8 @@ public class Killaura extends Module {
     public static EntityLivingBase underAttack;
     static Killaura killaura;
 
+    private final GuiComponent preAimSlider = new GuiComponent ( "Pre-Aim Range" , this , 1.3D , 0.1D , 0.1D );
+
     private final Raycast raycast = new Raycast ( );
 
     public static float previousYaw;
@@ -48,7 +53,6 @@ public class Killaura extends Module {
     private final Timings timings = new Timings ( );
     private final Timings hitAnimaton = new Timings ( );
 
-    private long delaySwitch = 0L;
     private boolean overPitched;
 
     private long rotationUpdateTicks;
@@ -58,13 +62,14 @@ public class Killaura extends Module {
     private boolean sniperCursered;
     private final Timings sniperTimings = new Timings ( );
     private final GuiComponent fovSlider = new GuiComponent ( "FOV" , this , 360D , 40D , 40D );
-    private final GuiComponent preAimSlider = new GuiComponent ( "Pre-Aim Range" , this , 2.2D , 0.1D , 0.1D );
+    private final GuiComponent focusOnEntityButton = new GuiComponent ( "Focus on Entity" , this , false );
     private final GuiComponent rangeSlider = new GuiComponent ( "Attack Reach" , this , 8D , 1D , 1D );
     private final GuiComponent delaySlider = new GuiComponent ( "Ticks" , this , 700D , 10D , 80D );
     private final GuiComponent autoblockMode = new GuiComponent ( "AutoBlock Mode" , this , Arrays.asList ( "None" , "Smart-Block" , "Block always" ) , "None" );
     private final GuiComponent movementMode = new GuiComponent ( "Movement Mode" , this , Arrays.asList ( "Normal" , "Server-Side" , "Client-Side" ) , "Normal" );
     private final GuiComponent hurtTimeButton = new GuiComponent ( "Hurttime" , this , false );
     private final GuiComponent rayTraceButton = new GuiComponent ( "Raytrace" , this , false );
+    protected EntityLivingBase currentEntity;
     private final GuiComponent preAimButton = new GuiComponent ( "Pre-Aim" , this , false );
     private final GuiComponent smoothHitButton = new GuiComponent ( "Smooth-Hits" , this , false );
     private final GuiComponent smoothAimButton = new GuiComponent ( "Smooth-Aim" , this , false );
@@ -99,8 +104,14 @@ public class Killaura extends Module {
         if (Minecraft.thePlayer.posX == Double.NaN || Minecraft.thePlayer.posZ == Double.NaN || Minecraft.thePlayer.posY == Double.NaN)
             return;
 
-//        if (mc.currentScreen != null)
-//            return;
+        if (mc.currentScreen != null && ( mc.currentScreen instanceof GuiChest || mc.currentScreen instanceof GuiInventory || mc.currentScreen instanceof GuiGameOver ))
+            return;
+
+        if (mc.thePlayer.isDead)
+            return;
+
+        if (mc.thePlayer.deathTime > 0)
+            return;
 
         EntityLivingBase entityLivingBase = this.getNearest ( );
 
@@ -109,7 +120,6 @@ public class Killaura extends Module {
             this.sendLooks ( entityLivingBase );
         } else {
             underAttack = null;
-            this.delaySwitch = 0L;
             this.lastEntity = null;
             this.hitAnimaton.resetTimings ( );
             this.sniperTimings.resetTimings ( );
@@ -138,6 +148,7 @@ public class Killaura extends Module {
         this.timings.resetTimings ( );
         this.hitAnimaton.resetTimings ( );
         attackTime = 0L;
+        this.setCurrentEntity ( null );
         super.onEnable ( );
     }
 
@@ -226,7 +237,7 @@ public class Killaura extends Module {
 
         final double distPlayer = Math.sqrt ( distPlayerX * distPlayerX + distPlayerZ * distPlayerZ );
 
-        final double rotationSpeed = ( distTarget + distPlayer ) / 2;
+        final double rotationSpeed = ( distTarget + distPlayer ) / 1.6D;
 
         return rotationSpeed;
     }
@@ -247,7 +258,6 @@ public class Killaura extends Module {
             this.updateTurnoffRotation ( );
 
         underAttack = null;
-        this.delaySwitch = 0L;
         this.lastEntity = null;
         attackTime = 0L;
 
@@ -255,6 +265,7 @@ public class Killaura extends Module {
             this.setUnblock ( );
 
         ItemRenderer.isBlocking = false;
+        this.setCurrentEntity ( null );
         super.onDisable ( );
     }
 
@@ -329,27 +340,44 @@ public class Killaura extends Module {
 
     private EntityLivingBase getNearest ( ) {
         double distance = this.rangeSlider.getCurrent ( );
+
+        if (this.preAimButton.isToggled ( ))
+            distance += this.preAimSlider.getCurrent ( );
+
         EntityLivingBase entityLivingBase = null;
 
-        for ( EntityLivingBase entities : this.getEntityToPlayer ( ) ) {
-
-            Location3D startLoc = new Location3D ( Minecraft.thePlayer.posX , Minecraft.thePlayer.posY + ( Minecraft.thePlayer.getEyeHeight ( ) / 2 ) , Minecraft.thePlayer.posZ );
-            Location3D endLoc = new Location3D ( entities.posX , entities.posY + ( entities.getEyeHeight ( ) / 2 ) , entities.posZ );
-            double dist = startLoc.distance ( endLoc );
-
-            if (entityLivingBase == null) {
-                distance = dist;
-                entityLivingBase = entities;
-            }
-
-            if (distance > dist) {
-                entityLivingBase = entities;
-                distance = dist;
+        if (this.focusOnEntityButton.isToggled ( )) {
+            if (this.getCurrentEntity ( ) != null) {
+                if (!this.checkDistance ( this.getCurrentEntity ( ) , distance ) && this.checkEntity ( this.getCurrentEntity ( ) ))
+                    entityLivingBase = this.getCurrentEntity ( );
+                else
+                    this.setCurrentEntity ( null );
             }
         }
 
+        if (entityLivingBase == null) {
+            for ( EntityLivingBase entities : this.getEntityToPlayer ( ) ) {
+
+                Location3D startLoc = new Location3D ( Minecraft.thePlayer.posX , Minecraft.thePlayer.posY + ( Minecraft.thePlayer.getEyeHeight ( ) / 2 ) , Minecraft.thePlayer.posZ );
+                Location3D endLoc = new Location3D ( entities.posX , entities.posY + ( entities.getEyeHeight ( ) / 2 ) , entities.posZ );
+                double dist = startLoc.distance ( endLoc );
+
+                if (entityLivingBase == null) {
+                    distance = dist;
+                    entityLivingBase = entities;
+                }
+
+                if (distance > dist) {
+                    entityLivingBase = entities;
+                    distance = dist;
+                }
+            }
+        }
+
+
         if (entityLivingBase != null && this.rayTraceButton.isToggled ( )) {
             EntityLivingBase raytrace = this.getRaytrace ( entityLivingBase );
+
             if (raytrace != null)
                 entityLivingBase = raytrace;
         }
@@ -482,46 +510,55 @@ public class Killaura extends Module {
 
     private void attackEntity ( EntityLivingBase entityLivingBase ) {
 
-        if (this.checkDelay ( entityLivingBase ) && !this.checkDistance ( entityLivingBase , this.rangeSlider.getCurrent ( ) )) {
+        if (this.checkDelay ( entityLivingBase )) {
 
-            if (this.autoMiss ( ) || this.overPitched)
-                return;
+            if (this.preAimButton.isToggled ( ) && !this.checkDistance ( entityLivingBase , this.rangeSlider.getCurrent ( ) + this.preAimSlider.getCurrent ( ) ))
+                this.swingItem ( );
 
-            if (this.isBlocking)
-                this.setUnblock ( );
+            if (!this.checkDistance ( entityLivingBase , this.rangeSlider.getCurrent ( ) )) {
+                if (this.autoMiss ( ) || this.overPitched)
+                    return;
 
-            //Swing item before automiss or pitch is over 90 Degress
-            this.swingItem ( );
-
-            boolean shouldAttack = true;
-
-            if (this.sniperCursered) {
-                shouldAttack = false;
-                this.sniperTimings.resetTimings ( );
-                this.sniperCursered = false;
-            }
-
-
-            if (shouldAttack) {
-                mc.playerController.attackEntity ( Minecraft.thePlayer , entityLivingBase );
-                attackTime++;
-            }
-
-            if (this.particlesButton.isToggled ( )) {
-                Minecraft.thePlayer.onCriticalHit ( entityLivingBase );
-                Minecraft.thePlayer.onEnchantmentCritical ( entityLivingBase );
-            }
-
-            this.timings.resetTimings ( );
-
-            if (this.lastEntity == null)
-                this.lastEntity = entityLivingBase;
-
-            if (this.shouldBlock ( entityLivingBase ))
-                this.setBlocking ( );
-            else {
-                if (ItemRenderer.isBlocking && this.isBlocking)
+                if (this.isBlocking)
                     this.setUnblock ( );
+
+                //Swing item before automiss or pitch is over 90 Degress
+                if (!mc.thePlayer.isSwingInProgress)
+                    this.swingItem ( );
+
+                boolean shouldAttack = true;
+
+                if (this.sniperCursered) {
+                    shouldAttack = false;
+                    this.sniperTimings.resetTimings ( );
+                    this.sniperCursered = false;
+                }
+
+
+                if (shouldAttack) {
+                    mc.playerController.attackEntity ( Minecraft.thePlayer , entityLivingBase );
+                    attackTime++;
+                }
+
+                if (this.particlesButton.isToggled ( )) {
+                    Minecraft.thePlayer.onCriticalHit ( entityLivingBase );
+                    Minecraft.thePlayer.onEnchantmentCritical ( entityLivingBase );
+                }
+
+                if (this.lastEntity == null) {
+                    this.lastEntity = entityLivingBase;
+                }
+
+                if (this.shouldBlock ( entityLivingBase )) {
+                    this.setBlocking ( );
+                } else {
+                    if (ItemRenderer.isBlocking && this.isBlocking) {
+                        this.setUnblock ( );
+                    }
+                }
+
+                this.setCurrentEntity ( entityLivingBase );
+                this.timings.resetTimings ( );
             }
         }
 
@@ -546,7 +583,7 @@ public class Killaura extends Module {
 
     private float computeNextYaw ( EntityLivingBase entityLivingBase , float currentYaw , float previousYaw , float targetYaw , float finalYaw ) {
 
-        float snappyness = 25F;
+        float snappyness = 27F;
         float friction = 1F;
 
         if (entityLivingBase != null) {
@@ -556,7 +593,7 @@ public class Killaura extends Module {
                 movementSpeed = 1.0D;
 
             if (movementSpeed > 0.1D)
-                snappyness = ( float ) ( ( movementSpeed * 1.76D ) * 100D );
+                snappyness = ( float ) ( ( movementSpeed * 1.77D ) * 100D );
 
             if (snappyness > 82F)
                 snappyness = 82F;
@@ -576,7 +613,7 @@ public class Killaura extends Module {
         if (this.getRotationUpdateTicks ( ) > 3L)
             currentYaw += motion;
 
-        this.doneRotatedYaw = Math.abs ( this.getRotation ( currentYaw , targetYaw ) ) <= 3F;
+        this.doneRotatedYaw = Math.abs ( this.getRotation ( currentYaw , targetYaw ) ) <= 5F;
         return currentYaw;
     }
 
@@ -601,7 +638,7 @@ public class Killaura extends Module {
                 this.lastEntity = null;
         }
 
-        this.doneRotatedPitch = Math.abs ( this.getRotation ( currentPitch , targetPitch ) ) <= 2F;
+        this.doneRotatedPitch = Math.abs ( this.getRotation ( currentPitch , targetPitch ) ) <= 5F;
         return currentPitch;
     }
 
@@ -618,7 +655,14 @@ public class Killaura extends Module {
         return this.doneRotatedYaw && this.doneRotatedPitch;
     }
 
-    private float[] getRotations ( Entity e ) {
+    private double getYDistance ( EntityLivingBase entityLivingBase ) {
+        final double playerY = mc.thePlayer.posY;
+        final double targetY = entityLivingBase.posY;
+        final double distY = targetY - playerY;
+        return distY;
+    }
+
+    private float[] getRotations ( EntityLivingBase e ) {
         double x = e.posX;
         double y = e.posY;
         double z = e.posZ;
@@ -627,15 +671,24 @@ public class Killaura extends Module {
         double fZ = Minecraft.thePlayer.posZ;
 
         if (this.smoothAimButton.isToggled ( )) {
+            final double yDist = this.getYDistance ( e );
 
-            if (mc.thePlayer.motionY > 0.0D
-                    && ( mc.thePlayer.moveForward != 0.0F || mc.thePlayer.moveStrafing != 0.0F )) {
-                fY -= mc.thePlayer.motionY;
+            if (yDist > 0) {
+
+                double acceptableDist = 1.34D;
+
+                if (e.hurtTimeNoCam > 0) {
+                    acceptableDist += ( e.hurtTimeNoCam / 10D );
+                }
+
+                if (yDist <= acceptableDist) {
+                    y -= yDist;
+                }
             }
         }
 
         Location3D startLoc = new Location3D ( fX , fY , fZ );
-        Location3D endLoc = new Location3D ( x , y - 0.6D , z );
+        Location3D endLoc = new Location3D ( x , y - 0.3D , z );
         BlickWinkel3D blickWinkel3D = new BlickWinkel3D ( startLoc , endLoc );
 
         //Jitter rotations -> yaw & pitch
@@ -649,11 +702,14 @@ public class Killaura extends Module {
             maxRndm = 7.5D;
 
         double randomYaw = 0D;
+
         double randomPitch = 0D;
 
         if (this.checkDistance ( ( EntityLivingBase ) e , this.rangeSlider.getCurrent ( ) )) {
-            randomYaw = ThreadLocalRandom.current ( ).nextDouble ( -maxRndm , maxRndm );
-            randomPitch = ThreadLocalRandom.current ( ).nextDouble ( -maxRndm , maxRndm );
+            if (this.doneRotatedYaw)
+                randomYaw = ThreadLocalRandom.current ( ).nextDouble ( -maxRndm , maxRndm );
+            if (this.doneRotatedPitch)
+                randomPitch = ThreadLocalRandom.current ( ).nextDouble ( -maxRndm , maxRndm );
         }
 
         float yaw = ( float ) blickWinkel3D.getYaw ( ) - ( float ) randomYaw;
@@ -695,6 +751,14 @@ public class Killaura extends Module {
 
     private void setRotationUpdateTicks ( long rotationUpdateTicks ) {
         this.rotationUpdateTicks = rotationUpdateTicks;
+    }
+
+    public EntityLivingBase getCurrentEntity ( ) {
+        return currentEntity;
+    }
+
+    public void setCurrentEntity ( EntityLivingBase currentEntity ) {
+        this.currentEntity = currentEntity;
     }
 }
 
